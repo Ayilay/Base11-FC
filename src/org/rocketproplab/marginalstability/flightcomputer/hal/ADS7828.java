@@ -17,8 +17,8 @@ public class ADS7828 implements PollingSensor {
    * X = A1 pin (GND = 0)
    * Y = A0 pin (GND = 0)
    */
-  public ADS7828(I2CDevice dev) {
-    if ((dev.getAddress() & 0xF8) != 0b1001000) {
+  public ADS7828(I2CDevice dev) throws RuntimeException {
+    if ((dev.getAddress() & 0xF8) != 0b10010000) {
       throw new RuntimeException("Invalid I2C address for ADS7828: " + dev.getAddress());
     }
 
