@@ -4,9 +4,12 @@ import java.io.IOException;
 import com.pi4j.io.i2c.I2CDevice;
 
 public class ADS7828 implements PollingSensor {
-  private I2CDevice i2c;
+  private static final byte NUM_CHANNELS = 8;
 
+  private I2CDevice i2c;
   private byte usingIntRef;    // Internal 2.5V Reference (0 or 1)
+
+  private short[] channelReadings; // Channel readings buffer
 
   /*
    * 7-bit Device Addresses:
@@ -22,6 +25,13 @@ public class ADS7828 implements PollingSensor {
     this.i2c = dev;
 
     this.usingIntRef = 1;
+
+    channelReadings = new short[NUM_CHANNELS];
+
+    // Initially all readings are invalid
+    for (int i = 0; i < NUM_CHANNELS; i++) {
+      channelReadings[i] = -1;
+    }
   }
 
   /*
@@ -37,25 +47,33 @@ public class ADS7828 implements PollingSensor {
   }
 
   /*
+   * Performs an I/O operation to read the ADC value of a specific channel.
+   *
+   * Do not call this method; Use the getChannelReading() instead, which
+   * returns the most recently sampled channel value
+   *
    * Note: The ADS7827 does not have internal registers. Transactions
    * are performed by writing to the device address, and the byte that
    * follows is a single command byte that initiates an ADC conversion.
-   *
    * A repeated start condition and an I2C read follows the command byte.
    *
-   * `channel' in range [0, 7]
    *
    * Single-ended inputs supported only at the moment,
    * Differential input mode not implemented
+   *
+   * channel: in range [0, 7]
+   *
+   * Return: 12-bit integer reading
+   *         -1 on I/O error
    */
-  public short readChannel(byte channel) {
+  public short performReadChannel(byte channel) {
 
     byte[] rawReading = new byte[2];
 
     // First send the command byte to initiate ADC conversion
 
     byte commandByte;
-    commandByte  = (byte) (1 << 7);      // Single-ended input
+    commandByte  = (byte) (1 << 7);     // Single-ended input
     commandByte |= (channel << 4);      // ADC Channel
     commandByte |= (usingIntRef << 3);  // Internal VRef
     commandByte |= (1 << 2);            // Stay powered on
@@ -65,6 +83,7 @@ public class ADS7828 implements PollingSensor {
     }
     catch (IOException e) {
       System.err.println("[ADS7827] readChannel failed to write command byte");
+      e.printStackTrace();
       return -1;
     }
 
@@ -78,16 +97,33 @@ public class ADS7828 implements PollingSensor {
     }
     catch (IOException e) {
       System.err.println("[ADS7827] readChannel failed to read ADC Value");
+      e.printStackTrace();
       return -1;
     }
 
     // TODO test to make sure no sign extension happens
-    short convResult = (short) (((short) (rawReading[0] << 8)) | ((short) rawReading[1]));
+    short convResult = (short) ((rawReading[0] << 8) | rawReading[1]);
     return convResult;
   }
 
+  /*
+   * Return the most recently sampled value of the given ADC channel
+   *
+   * The returned reading may be -1 if some error occured while reading
+   * the sample, or if the readings are uninitialized
+   */
+  public short getChannelReading(byte channel) {
+    return channelReadings[channel];
+  }
+
+  /*
+   * Poll all 8 ADC channels and store the measurements in the
+   * channelReadings buffer
+   */
   public void poll() {
-    // TODO implement
+    for (byte i = 0; i < NUM_CHANNELS; i++) {
+      channelReadings[i] = performReadChannel(i);
+    }
   }
 
 }
