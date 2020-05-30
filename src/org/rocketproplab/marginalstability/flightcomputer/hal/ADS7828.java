@@ -1,3 +1,24 @@
+/*
+ * ADS7828.java: HAL device driver for 12-big ADC with 8 channels
+ *
+ * ----------------------------------------------------------------------
+ * Basic Features:
+ *  - Methods to trigger a single-ended conversion on any channel
+ *  - Implements PollingSensor interface, allows triggering conversion
+ *    at regular intervals and storing results in buffer to be accessed
+ *    on demand
+ *  - No differential mode support
+ *  - Allows use of external precise 2.5V reference 
+ *    (see hardware layout if applicable)
+ *
+ * ----------------------------------------------------------------------
+ * Device Datasheet: http://www.ti.com/lit/ds/symlink/ads7828.pdf
+ * ----------------------------------------------------------------------
+ *
+ * Author:       Georges Troulis <gtroulis@ucsd.edu>
+ * Last Revised: 05/30/2020
+ */
+
 package org.rocketproplab.marginalstability.flightcomputer.hal;
 
 import java.io.IOException;
@@ -12,16 +33,18 @@ public class ADS7828 implements PollingSensor {
   private short[] channelReadings; // Channel readings buffer
 
   /*
-   * 7-bit Device Addresses:
+   * Construct and initialize an ADS7828 ADC interface using an existing I2CDevice.
+   *
+   * Valid 7-bit Device Addresses:
    * 0b10010XY
    * X = A1 pin (GND = 0)
    * Y = A0 pin (GND = 0)
+   *
+   * Preconditions:
+   *  - Parameter `dev' is a properly initialized I2CDevice with an address
+   *    conforming to a valid address explained above
    */
-  public ADS7828(I2CDevice dev) throws RuntimeException {
-    if ((dev.getAddress() & 0xF8) != 0b10010000) {
-      throw new RuntimeException("Invalid I2C address for ADS7828: " + dev.getAddress());
-    }
-
+  public ADS7828(I2CDevice dev) {
     this.i2c = dev;
 
     this.usingIntRef = 1;
@@ -36,11 +59,16 @@ public class ADS7828 implements PollingSensor {
 
   /*
    * Configures the ADC to use the internal 2.5V Reference
-   * or an external VRef
+   * or an external VRef.
    *
-   * newUsingIntRef values:
-   *  0: Use external VRef
-   *  1: Use internal 2.5V Reference
+   * See the Motherboard circuit schematic to determine if
+   * an external 2.5V reference is present. If in doubt,
+   * use the internal reference (useIntRef = calse)
+   *
+   * Parameters:
+   *  useIntRef:
+   *   false: Use external VRef
+   *   true:  Use internal 2.5V Reference
    */
   public void setUsingIntRef(boolean useIntRef) {
     usingIntRef = (byte) (useIntRef ? 1 : 0);
@@ -49,19 +77,19 @@ public class ADS7828 implements PollingSensor {
   /*
    * Performs an I/O operation to read the ADC value of a specific channel.
    *
-   * Do not call this method; Use the getChannelReading() instead, which
-   * returns the most recently sampled channel value
+   * It is not advised to call this; Use the getChannelReading() instead, 
+   * which returns the most recently sampled channel value.
    *
    * Note: The ADS7827 does not have internal registers. Transactions
    * are performed by writing to the device address, and the byte that
    * follows is a single command byte that initiates an ADC conversion.
    * A repeated start condition and an I2C read follows the command byte.
    *
-   *
    * Single-ended inputs supported only at the moment,
    * Differential input mode not implemented
    *
-   * channel: in range [0, 7]
+   * Parameters:
+   *   channel: in range [0, 7]
    *
    * Return: 12-bit integer reading
    *         -1 on I/O error
@@ -107,7 +135,10 @@ public class ADS7828 implements PollingSensor {
   }
 
   /*
-   * Return the most recently sampled value of the given ADC channel
+   * Return the most recently sampled value of the given ADC channel.
+   *
+   * ADC channels can be sampled at regular intervals using the `poll()'
+   * method, as defined in the PollingSensor interface.
    *
    * The returned reading may be -1 if some error occured while reading
    * the sample, or if the readings are uninitialized
@@ -117,8 +148,11 @@ public class ADS7828 implements PollingSensor {
   }
 
   /*
+   * Perform ADC readings and store in a buffer to be accessed later,
+   * as defined in the PollingSensor interface.
+   *
    * Poll all 8 ADC channels and store the measurements in the
-   * channelReadings buffer
+   * channelReadings buffer.
    */
   public void poll() {
     for (byte i = 0; i < NUM_CHANNELS; i++) {

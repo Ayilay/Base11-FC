@@ -125,50 +125,16 @@ public class ADS7828Test {
     }
   }
 
-  /**
-   * Brute force every I2C address for this sensor, and ensure that
-   * invalid addresses throw an exception.
-   *
-   * TODO: Still need to check if 7-bit address is MSB aligned or
-   * LSB aligned, depends on library implementation.
-   * Currently assuming MSB aligned
-   */
-  @Test
-  public void testInvalidSensorAddr() {
-
-    // Only 4 addresses are valid, see datasheet
-    ArrayList<Integer> validAddresses = new ArrayList<>();
-    validAddresses.add(0x90);
-    validAddresses.add(0x92);
-    validAddresses.add(0x94);
-    validAddresses.add(0x96);
-
-    MockI2CDevice i2c;
-    ADS7828 adc1;
-
-    // Brute-force 7-bit address space, MSB bits only
-    // Ignore LSB because that's the R/nW bit
-    for (int addr = 0; addr < (1<<8); addr+=2) {
-
-      i2c = new MockI2CDevice(addr);
-
-      try {
-        adc1 = new ADS7828(i2c);
-
-        // If invalid I2C address, should have thrown exception
-        if (!validAddresses.contains(addr))
-          Assert.fail(String.format("Invalid i2c address (0x%x), did not throw RuntimeException", addr));
-      }
-      catch (RuntimeException e) {
-
-        // If valid I2C address threw runtime exception, that's bad
-        if (validAddresses.contains(addr))
-          Assert.fail(String.format("Valid i2c address (0x%x), but threw RuntimeException", addr));
-      }
-    }
-  }
-
   @Test
   public void testSomething() {
+    int addr = 0x90;
+
+    MockI2CDevice i2c = new MockI2CDevice(addr);
+
+    ADS7828 adc1;
+		adc1 = new ADS7828(i2c);
+
+    // TODO stuff, currently doesn't work
+    short adc0Val = adc1.performReadChannel((byte) 0);
   }
 }
